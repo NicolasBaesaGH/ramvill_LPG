@@ -12,7 +12,7 @@
 </div>
 <div class="panel"><h3>Sales overview: daily sales</h3><div id="daily"></div></div>
 <div class="panel"><h3>Sales by product</h3><div id="prod"></div></div>
-{% if role == 'owner' %}
+{% if role == 'admin' %}
 <div class="panel"><h3>Generate report</h3>
   <div class="row noprint"><div><label>Report</label><select id="kind"><option value="inventory">Inventory report</option><option value="customers">Customer report</option><option value="tanks">Tank tracking report</option></select></div>
     <button class="btn go" id="gen">Generate report</button><button class="btn alt" id="csv" disabled>Download CSV</button><button class="btn ghost" id="print" disabled>Print</button></div>
@@ -34,7 +34,7 @@ async function load() {
 }
 $('#apply').onclick = () => load().catch(e => toast(e.message, true));
 load();
-{% if role == 'owner' %}
+{% if role == 'admin' %}
 $('#gen').onclick = async () => {
   try {
     const d = await api(`/api/reports/${$('#kind').value}?` + qs());
