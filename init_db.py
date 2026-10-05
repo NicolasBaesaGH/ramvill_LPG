@@ -15,9 +15,16 @@ with conn.cursor() as c:
         s = stmt.strip()
         if s and not s.upper().startswith(("CREATE DATABASE", "USE ")):
             c.execute(s)
-    # Set OWNER_PASSWORD / STAFF_PASSWORD to choose real passwords (also updates existing logins)
-    for u, env, n in [("owner", "OWNER_PASSWORD", "Owner"), ("staff", "STAFF_PASSWORD", "Staff")]:
-        pw = os.getenv(env)
+    # Migrate an older install: the 'owner' account/role becomes 'admin'
+    c.execute("ALTER TABLE users MODIFY role ENUM('owner','admin','staff') NOT NULL DEFAULT 'staff'")
+    c.execute("SELECT COUNT(*) FROM users WHERE username='admin'")
+    if c.fetchone()[0] == 0:
+        c.execute("UPDATE users SET username='admin', full_name='Admin' WHERE username='owner'")
+    c.execute("UPDATE users SET role='admin' WHERE role='owner'")
+    c.execute("ALTER TABLE users MODIFY role ENUM('admin','staff') NOT NULL DEFAULT 'staff'")
+    # Set ADMIN_PASSWORD / STAFF_PASSWORD to choose real passwords (also updates existing logins)
+    for u, pw, n in [("admin", os.getenv("ADMIN_PASSWORD") or os.getenv("OWNER_PASSWORD"), "Admin"),
+                     ("staff", os.getenv("STAFF_PASSWORD"), "Staff")]:
         verb = "INSERT INTO" if pw else "INSERT IGNORE INTO"
         tail = " ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash)" if pw else ""
         c.execute(f"{verb} users (username, password_hash, full_name, role) VALUES (%s,%s,%s,%s){tail}",
@@ -29,4 +36,4 @@ with conn.cursor() as c:
             ("Carinderia ni Aling Nena", "Business", "0928 555 0102", "Zabarte Rd, Caloocan", 5),
             ("Kuya Jun Bakery", "Business", "0935 222 8890", "Camarin, Caloocan", 5)])
 conn.commit()
-print("Database ready. Logins: owner / owner123  and  staff / staff123 (change these!)")
+print("Database ready. Logins: admin and staff (passwords = ADMIN_PASSWORD / STAFF_PASSWORD you set; defaults admin123 / staff123, change them!)")

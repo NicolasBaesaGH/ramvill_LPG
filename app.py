@@ -82,12 +82,12 @@ def login_required(f):
     return wrapper
 
 
-def owner_required(f):
+def admin_required(f):
     @wraps(f)
     @login_required
     def wrapper(*a, **k):
-        if session.get("role") != "owner":
-            return jsonify(error="Only the owner can do this."), 403
+        if session.get("role") != "admin":
+            return jsonify(error="Only the admin can do this."), 403
         return f(*a, **k)
     return wrapper
 
@@ -425,9 +425,9 @@ def api_sales():
                    change_pct=change, by_product=by_product, daily=daily)
 
 
-# ---------- reports (owner only) ----------
+# ---------- reports (admin only) ----------
 @app.get("/api/reports/<kind>")
-@owner_required
+@admin_required
 def api_report(kind):
     fr, to = period()
     if kind == "inventory":
