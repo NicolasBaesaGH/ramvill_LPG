@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">Inventory</h2>
+<div class="stats">
+  <div class="stat sm c-blue"><div class="l">Full Cylinders</div><div class="v" id="full">0</div></div>
+  <div class="stat sm c-green"><div class="l">Empty Cylinders</div><div class="v" id="empty">0</div></div>
+  <div class="stat sm c-purple"><div class="l">Total Stock</div><div class="v" id="total">0</div></div>
+</div>
+<div class="panel">
+  <div class="row">
+    <div><label>Search</label><input id="q" placeholder="Brand or size"></div>
+    <div><label>Brand</label><select id="brand"><option value="">All brands</option></select></div>
+    <div><label>Cylinder size</label><select id="size"><option value="">All sizes</option></select></div>
+    <div><label>Show</label><select id="kind"><option>Full</option><option>Empty</option></select></div>
+    <button class="btn go" id="add" style="margin-left:auto">Add stock</button>
+  </div>
+  <div id="list"></div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+let rows = [], all = [], inited = false;
+async function load() {
+  const p = new URLSearchParams({ q: $('#q').value, brand: $('#brand').value, size: $('#size').value, kind: $('#kind').value });
+  const d = await api('/api/inventory?' + p); rows = d.rows;
+  $('#full').textContent = d.full; $('#empty').textContent = d.empty; $('#total').textContent = d.total;
+  if (!inited) {
+    inited = true; all = rows;
+    $('#brand').innerHTML += [...new Set(rows.map(r => r.brand))].map(b => `<option>${esc(b)}</option>`).join('');
+    $('#size').innerHTML += [...new Set(rows.map(r => r.size_kg))].map(s => `<option value="${s}">${s}kg</option>`).join('');
+  }
+  $('#list').innerHTML = table([
+    { h: 'Brand', f: r => esc(r.brand) }, { h: 'Size', f: r => r.size_kg + 'kg' },
+    { h: $('#kind').value + ' qty', num: 1, f: r => r.qty }, { h: 'Status', f: r => badge(r.status) },
+    { h: 'Low at / Critical at', f: r => `${r.low_level} / ${r.critical_level}` },
+    { h: '', f: r => `<button class="btn sm" data-id="${r.id}">Add stock</button>` }], rows, 'No inventory matches these filters.');
+}
+['q'].forEach(i => $('#' + i).oninput = debounce(load));
+['brand', 'size', 'kind'].forEach(i => $('#' + i).onchange = load);
+function stockForm(id) {
+  const m = modal(`<h3>Add stock</h3>
+    <div class="f"><label>Product</label><select id="sp">${all.map(r => `<option value="${r.id}">${esc(r.brand)} ${r.size_kg}kg</option>`).join('')}</select></div>
+    <div class="f"><label>Cylinder type</label><select id="sk"><option>Full</option><option>Empty</option></select></div>
+    <div class="f"><label>Quantity received</label><input id="sq" type="number" min="1" value="1"></div>
+    <div class="actions"><button class="btn ghost" id="sx">Cancel</button><button class="btn go" id="so">Add stock</button></div>`);
+  if (id) $('#sp', m).value = id;
+  $('#sx', m).onclick = m.close;
+  $('#so', m).onclick = async () => {
+    try { await api(`/api/inventory/${$('#sp', m).value}/add-stock`, { method: 'POST', body: { kind: $('#sk', m).value, qty: $('#sq', m).value } }); m.close(); toast('Stock added.'); load(); }
+    catch (e) { toast(e.message, true); }
+  };
+}
+$('#add').onclick = () => stockForm();
+$('#list').onclick = e => { const b = e.target.closest('[data-id]'); if (b) stockForm(b.dataset.id); };
+load();
+</script>{% endblock %}

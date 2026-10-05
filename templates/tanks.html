@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">Tank Returns / Cylinder Tracking</h2>
+<div class="stats">
+  <div class="stat sm c-purple"><div class="l">All Tanks</div><div class="v" id="s-total">0</div></div>
+  <div class="stat sm c-blue"><div class="l">Borrowed</div><div class="v" id="s-borrowed">0</div></div>
+  <div class="stat sm c-green"><div class="l">Returned</div><div class="v" id="s-returned">0</div></div>
+  <div class="stat sm c-orange"><div class="l">Overdue</div><div class="v" id="s-overdue">0</div></div>
+</div>
+<div class="panel">
+  <div class="chips" id="chips">{% for s in ['All','Borrowed','Returned','Overdue'] %}<button class="chip {{ 'on' if s=='All' }}" data-s="{{ s }}">{{ s }}</button>{% endfor %}</div>
+  <div class="row">
+    <div><label>Search customer</label><input id="q"></div>
+    <div><label>Borrowed from</label><input id="from" type="date"></div>
+    <div><label>Borrowed to</label><input id="to" type="date"></div>
+    <button class="btn ghost" id="reset">Clear filters</button>
+  </div>
+  <div id="list"></div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+let status = 'All';
+async function load() {
+  const p = new URLSearchParams({ status, q: $('#q').value, from: $('#from').value, to: $('#to').value });
+  const d = await api('/api/tanks?' + p);
+  for (const k of ['total', 'borrowed', 'returned', 'overdue']) $('#s-' + k).textContent = d.summary[k];
+  $('#list').innerHTML = table([
+    { h: 'Customer', f: r => `<b>${esc(r.customer)}</b><br><small>${esc(r.phone || '')}</small>` },
+    { h: 'Brand', f: r => esc(r.brand) }, { h: 'Size', f: r => r.size_kg + 'kg' }, { h: 'Qty', num: 1, f: r => r.qty },
+    { h: 'Borrowed', f: r => dt(r.borrowed_date) }, { h: 'Expected return', f: r => dt(r.expected_return_date) },
+    { h: 'Status', f: r => badge(r.status) + (r.returned_date ? `<br><small>on ${dt(r.returned_date)}</small>` : '') },
+    { h: '', f: r => r.status === 'Returned' ? '' : `<button class="btn sm go" data-id="${r.id}">Mark as returned</button>` }], d.rows, 'No tank records match these filters.');
+}
+$('#chips').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; status = c.dataset.s; document.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', x === c)); load(); };
+$('#q').oninput = debounce(load); $('#from').onchange = load; $('#to').onchange = load;
+$('#reset').onclick = () => { $('#q').value = $('#from').value = $('#to').value = ''; load(); };
+$('#list').onclick = async e => {
+  const b = e.target.closest('[data-id]'); if (!b) return;
+  try { await api(`/api/tanks/${b.dataset.id}/return`, { method: 'POST' }); toast('Tank marked as returned. Empty stock updated.'); load(); } catch (x) { toast(x.message, true); }
+};
+load();
+</script>{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">Customers</h2>
+<div class="panel">
+  <div class="row"><div style="flex:1;max-width:360px"><label>Search customers</label><input id="q" placeholder="Name or phone" style="width:100%"></div>
+  <button class="btn go" id="add" style="margin-left:auto">Add customer</button></div>
+  <div id="list"></div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+let rows = [];
+async function load() {
+  rows = await api('/api/customers?q=' + encodeURIComponent($('#q').value));
+  $('#list').innerHTML = table([
+    { h: 'Name', f: r => `<b>${esc(r.name)}</b>` }, { h: 'Type', f: r => badge(r.type) },
+    { h: 'Contact', f: r => esc(r.phone) }, { h: 'Address', f: r => esc(r.address) },
+    { h: 'Discount', num: 1, f: r => r.discount_pct + '%' }, { h: 'Orders', num: 1, f: r => r.orders },
+    { h: 'Total purchases', num: 1, f: r => peso(r.total_purchases) }, { h: 'Tanks borrowed', num: 1, f: r => r.tanks_borrowed },
+    { h: '', f: r => `<button class="btn sm alt" data-h="${r.id}">Order history</button> <button class="btn sm" data-e="${r.id}">Edit</button>` }], rows, 'No customers found. Add your first customer.');
+}
+$('#q').oninput = debounce(load);
+$('#add').onclick = () => customerForm(null, load);
+$('#list').onclick = async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.e) return customerForm(rows.find(r => r.id == b.dataset.e), load);
+  const c = rows.find(r => r.id == b.dataset.h), o = await api(`/api/customers/${c.id}/orders`);
+  const m = modal(`<h3>Order history: ${esc(c.name)}</h3>${table([
+    { h: 'Order', f: x => '#' + x.id }, { h: 'Date', f: x => dt(x.created_at) }, { h: 'Type', f: x => x.fulfillment },
+    { h: 'Total', num: 1, f: x => peso(x.total) }, { h: 'Status', f: x => badge(x.status) }], o, 'No orders yet.')}
+    <div class="actions"><button class="btn ghost" id="mx">Close</button></div>`);
+  $('#mx', m).onclick = m.close;
+};
+load();
+</script>{% endblock %}

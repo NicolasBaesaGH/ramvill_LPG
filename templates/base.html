@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Ramvill LPG Trading{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="30" fill="#0a2f5c" stroke="#f7c948" stroke-width="2"/><path d="M33 8c2 9-8 13-8 23 0 4 2 7 5 9-1-5 2-8 5-11 1 4 5 6 5 12 0 4-3 7-6 8 6 0 12-5 12-13 0-9-8-14-13-28z" fill="#f07a2e"/><path d="M31 33c-3 3-5 6-3 10 1 3 4 4 6 4 4-1 6-5 4-9-1 2-3 3-4 2-2-2-1-4-3-7z" fill="#f7c948"/></svg>
+    <div><h1>Ramvill LPG Trading</h1><small>Sales and Inventory System</small></div>
+  </div>
+  {% block tools %}{% endblock %}
+  <div class="greet"><b id="greeting" data-name="{{ user_name }}">Hello, {{ user_name }}!</b><span id="clock"></span> <a href="/logout">Log out</a></div>
+</header>
+<div class="shell">
+  <nav class="side" aria-label="Main">
+    {% for key, href, icon, label in [('dashboard','/','🏠','Home'),('order','/order','🛒','New Order'),('delivery','/delivery','🚚','Delivery &amp; Pick-up'),('inventory','/inventory','📦','Inventory'),('customers','/customers','👥','Customers'),('tanks','/tanks','🔄','Tank Returns'),('reports','/reports','📈','Sales &amp; Reports')] %}
+    <a href="{{ href }}" class="{{ 'on' if page == key }}"><span class="ic">{{ icon }}</span><span class="t">{{ label|safe }}</span></a>
+    {% endfor %}
+  </nav>
+  <main>{% block content %}{% endblock %}</main>
+</div>
+<div id="toast" aria-live="polite"></div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

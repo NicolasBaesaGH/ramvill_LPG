@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">New Order</h2>
+<div class="grid2">
+  <div>
+    <div class="panel"><h3>1. Customer</h3>
+      <div class="row"><div style="flex:1"><label for="cs">Search customer</label><input id="cs" placeholder="Name or phone"></div><button class="btn alt" id="addc">Add customer</button></div>
+      <div class="pick" id="results" hidden></div>
+      <div class="chosen" id="chosen" hidden></div></div>
+    <div class="panel"><h3>2. Add items</h3>
+      <div class="row">
+        <div><label>LPG brand</label><select id="brand"></select></div>
+        <div><label>Cylinder size</label><select id="size"></select></div>
+        <div><label>Unit price</label><input id="price" readonly style="width:120px"></div></div>
+      <div class="row">
+        <div><label>Quantity</label><div class="qty"><button id="minus" aria-label="Decrease">−</button><input id="qty" type="number" min="1" value="1"><button id="plus" aria-label="Increase">+</button></div></div>
+        <div><label>Empty tank returned?</label><select id="empty"><option value="0">No</option><option value="1">Yes</option></select></div>
+        <button class="btn go" id="additem">Add item to order</button></div></div>
+  </div>
+  <div class="panel"><h3>Order summary</h3>
+    <div id="lines"></div>
+    <div class="totals"><div>Subtotal: <b id="sub">₱0.00</b></div><div>Discount (<span id="dp">0</span>%): <b id="disc">₱0.00</b></div><div class="grand" id="tot">₱0.00</div></div>
+    <div class="row" style="margin-top:12px"><div><label>Pick-up or delivery</label><select id="ful"><option>Pick-up</option><option>Delivery</option></select></div>
+      <div style="flex:1" id="addrbox" hidden><label>Delivery address</label><input id="addr"></div></div>
+    <div class="row"><button class="btn ghost" id="clear">Clear order</button><button class="btn go" id="place">Place order</button></div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script>
+let products = [], customer = null, items = [];
+const brand = $('#brand'), size = $('#size');
+function curProduct() { return products.find(p => p.brand === brand.value && String(p.size_kg) === size.value); }
+function fillSizes() {
+  size.innerHTML = products.filter(p => p.brand === brand.value).map(p => `<option value="${p.size_kg}">${p.size_kg}kg</option>`).join('');
+  showPrice();
+}
+function showPrice() { const p = curProduct(); $('#price').value = p ? peso(p.price) : ''; }
+function render() {
+  $('#lines').innerHTML = table([
+    { h: 'Item', f: i => `${esc(i.brand)} ${i.size_kg}kg` },
+    { h: 'Qty', f: (i, ) => `<span class="qty"><button data-d="-1" data-k="${i.key}">−</button> ${i.qty} <button data-d="1" data-k="${i.key}">+</button></span>` },
+    { h: 'Empty back', f: i => i.empty ? 'Yes' : 'No' },
+    { h: 'Amount', num: 1, f: i => peso(i.qty * i.price) },
+    { h: '', f: i => `<button class="btn sm bad" data-rm="${i.key}">Remove</button>` }], items, 'No items yet. Choose a brand and size, then add the item.');
+  const sub = items.reduce((s, i) => s + i.qty * i.price, 0), pct = customer ? Number(customer.discount_pct) : 0, disc = Math.round(sub * pct) / 100;
+  $('#sub').textContent = peso(sub); $('#dp').textContent = pct; $('#disc').textContent = '−' + peso(disc); $('#tot').textContent = peso(sub - disc);
+}
+$('#lines').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const it = items.find(i => String(i.key) === (b.dataset.k || b.dataset.rm));
+  if (b.dataset.rm) items = items.filter(i => i !== it);
+  else { it.qty += Number(b.dataset.d); if (it.qty < 1) items = items.filter(i => i !== it); }
+  render();
+};
+function choose(c) {
+  customer = c; $('#results').hidden = true;
+  $('#chosen').hidden = false;
+  $('#chosen').innerHTML = `<b>${esc(c.name)}</b> ${badge(c.type)}<br>${esc(c.phone || '')} ${esc(c.address || '')}<br>Discount: ${c.discount_pct}%`;
+  if (!$('#addr').value) $('#addr').value = c.address || '';
+  render();
+}
+$('#cs').oninput = debounce(async () => {
+  const v = $('#cs').value.trim(); if (!v) { $('#results').hidden = true; return; }
+  const rows = await api('/api/customers?q=' + encodeURIComponent(v));
+  const box = $('#results'); box.hidden = false;
+  box.innerHTML = rows.length ? rows.map((c, i) => `<div data-i="${i}">${esc(c.name)} · ${esc(c.type)} · ${esc(c.phone || '')}</div>`).join('') : '<div>No match. Use "Add customer".</div>';
+  box.onclick = e => { const d = e.target.closest('[data-i]'); if (d) choose(rows[d.dataset.i]); };
+});
+$('#addc').onclick = () => customerForm(null, c => choose(c));
+$('#minus').onclick = () => { $('#qty').value = Math.max(1, Number($('#qty').value) - 1); };
+$('#plus').onclick = () => { $('#qty').value = Number($('#qty').value) + 1; };
+brand.onchange = fillSizes; size.onchange = showPrice;
+$('#additem').onclick = () => {
+  const p = curProduct(), qty = Math.floor(Number($('#qty').value)), empty = $('#empty').value === '1';
+  if (!p || qty < 1) return toast('Choose a brand, size and quantity.', true);
+  const key = p.id + '-' + (empty ? 1 : 0), ex = items.find(i => i.key === key);
+  if (ex) ex.qty += qty; else items.push({ key, product_id: p.id, brand: p.brand, size_kg: p.size_kg, price: p.price, qty, empty });
+  $('#qty').value = 1; render();
+};
+$('#ful').onchange = () => { $('#addrbox').hidden = $('#ful').value !== 'Delivery'; };
+function reset() { items = []; customer = null; $('#chosen').hidden = true; $('#cs').value = ''; $('#addr').value = ''; $('#ful').value = 'Pick-up'; $('#addrbox').hidden = true; render(); }
+$('#clear').onclick = reset;
+$('#place').onclick = async () => {
+  if (!customer) return toast('Search for or add a customer first.', true);
+  if (!items.length) return toast('Add at least one item.', true);
+  try {
+    const r = await api('/api/orders', { method: 'POST', body: { customer_id: customer.id, fulfillment: $('#ful').value, address: $('#addr').value, items: items.map(i => ({ product_id: i.product_id, qty: i.qty, empty_returned: i.empty })) } });
+    toast(`Order #${r.id} placed. Total ${peso(r.total)}.`); reset();
+  } catch (e) { toast(e.message, true); }
+};
+(async () => {
+  products = await api('/api/products');
+  brand.innerHTML = [...new Set(products.map(p => p.brand))].map(b => `<option>${esc(b)}</option>`).join('');
+  fillSizes(); render();
+})();
+</script>{% endblock %}

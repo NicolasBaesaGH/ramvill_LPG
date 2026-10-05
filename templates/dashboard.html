@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block tools %}
+<div class="tools"><input type="date" id="d" aria-label="Select a date"><button class="btn" id="refresh">Refresh</button></div>
+{% endblock %}
+{% block content %}
+<div class="banner"><h2>Safe Gas,<br>Better Tomorrow</h2><p>Reliable LPG Supply for your home and business</p></div>
+<div class="stats">
+  <div class="stat c-blue"><div class="l">Full Cylinders</div><div class="v" id="full">0</div></div>
+  <div class="stat c-green"><div class="l">Empty Cylinders</div><div class="v" id="empty">0</div></div>
+  <div class="stat c-purple"><div class="l">Today's Sales</div><div class="v" id="sales" style="font-size:32px">₱0.00</div></div>
+  <div class="stat c-orange"><div class="l">Today's Orders</div><div class="v" id="orders">0</div></div>
+</div>
+<div class="boxes">
+  <div class="alert red"><h3>Low Stock Alerts</h3><div id="low"></div></div>
+  <div class="alert info"><h3>Pending Tank Returns</h3><div id="pending"></div></div>
+</div>
+<div class="panel"><h3>Quick access</h3><div class="quick">
+  <a class="btn" href="/order">New Order</a><a class="btn alt" href="/inventory">Inventory</a><a class="btn alt" href="/customers">Customers</a>
+  <a class="btn alt" href="/tanks">Tank Returns</a><a class="btn alt" href="/reports">Sales</a></div></div>
+{% endblock %}
+{% block scripts %}<script>
+$('#d').value = today();
+async function load() {
+  const d = await api('/api/dashboard?date=' + $('#d').value);
+  $('#full').textContent = d.full; $('#empty').textContent = d.empty;
+  $('#sales').textContent = peso(d.sales); $('#orders').textContent = d.orders;
+  $('#low').innerHTML = d.low.length ? '<ul>' + d.low.map(p => `<li>${esc(p.brand)} ${p.size_kg}kg: ${p.full_qty} left ${badge(p.status)}</li>`).join('') + '</ul>' : '✅ All stock levels are healthy.';
+  $('#pending').innerHTML = d.pending.length ? '<ul>' + d.pending.map(t => `<li>${esc(t.customer)}: ${t.qty} x ${esc(t.brand)} ${t.size_kg}kg, due ${dt(t.expected_return_date)} ${badge(t.status)}</li>`).join('') + '</ul>' : '✅ No unreturned tanks pending.';
+}
+$('#refresh').onclick = () => load().catch(e => toast(e.message, true));
+load();
+</script>{% endblock %}

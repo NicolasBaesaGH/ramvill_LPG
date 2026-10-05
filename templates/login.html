@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Log in | Ramvill LPG Trading</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"></head>
+<body class="login">
+<form method="post">
+  <h1>Ramvill LPG Trading</h1><p>Sales and Inventory System</p>
+  {% if error %}<div class="err">{{ error }}</div>{% endif %}
+  <label for="u">Username</label><input id="u" name="username" autofocus required>
+  <label for="p">Password</label><input id="p" name="password" type="password" required>
+  <button class="btn" type="submit">Log in</button>
+</form>
+</body></html>

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="page-title">Sales &amp; Reports</h2>
+<div class="panel noprint"><div class="row">
+  <div><label>From</label><input id="from" type="date"></div><div><label>To</label><input id="to" type="date"></div>
+  <button class="btn" id="apply">Apply dates</button></div></div>
+<div class="stats">
+  <div class="stat sm c-purple"><div class="l">Total Sales</div><div class="v" id="ts">₱0.00</div></div>
+  <div class="stat sm c-orange"><div class="l">Total Orders</div><div class="v" id="to_">0</div></div>
+  <div class="stat sm c-blue"><div class="l">Average Order Value</div><div class="v" id="av">₱0.00</div></div>
+  <div class="stat sm c-green"><div class="l">Vs Previous Period</div><div class="v" id="cmp">-</div></div>
+</div>
+<div class="panel"><h3>Sales overview: daily sales</h3><div id="daily"></div></div>
+<div class="panel"><h3>Sales by product</h3><div id="prod"></div></div>
+{% if role == 'owner' %}
+<div class="panel"><h3>Generate report</h3>
+  <div class="row noprint"><div><label>Report</label><select id="kind"><option value="inventory">Inventory report</option><option value="customers">Customer report</option><option value="tanks">Tank tracking report</option></select></div>
+    <button class="btn go" id="gen">Generate report</button><button class="btn alt" id="csv" disabled>Download CSV</button><button class="btn ghost" id="print" disabled>Print</button></div>
+  <small class="noprint">Inventory report shows current stock. Customer and tank reports use the dates above.</small>
+  <div id="report"></div></div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script>
+$('#from').value = ago(29); $('#to').value = today();
+const qs = () => new URLSearchParams({ from: $('#from').value, to: $('#to').value });
+async function load() {
+  const d = await api('/api/sales?' + qs());
+  $('#ts').textContent = peso(d.total_sales); $('#to_').textContent = d.total_orders; $('#av').textContent = peso(d.average);
+  $('#cmp').textContent = d.change_pct === null ? 'No data' : (d.change_pct >= 0 ? '▲ ' : '▼ ') + Math.abs(d.change_pct).toFixed(1) + '%';
+  const max = Math.max(1, ...d.daily.map(x => x.sales));
+  $('#daily').innerHTML = d.daily.length ? `<div class="bars">${d.daily.map(x => `<div class="bar" style="height:${Math.max(3, x.sales / max * 100)}%" title="${dt(x.day)}: ${peso(x.sales)} (${x.orders} orders)"><i>${dt(x.day).slice(5)}</i></div>`).join('')}</div>` : '<div class="empty">No sales in this period.</div>';
+  const top = Math.max(1, ...d.by_product.map(x => x.revenue));
+  $('#prod').innerHTML = table([{ h: 'Product', f: r => esc(r.product) }, { h: 'Units', num: 1, f: r => r.qty }, { h: 'Revenue', num: 1, f: r => peso(r.revenue) }, { h: '', f: r => `<div class="hbar"><i style="width:${r.revenue / top * 100}%"></i></div>` }], d.by_product, 'No products sold in this period.');
+}
+$('#apply').onclick = () => load().catch(e => toast(e.message, true));
+load();
+{% if role == 'owner' %}
+$('#gen').onclick = async () => {
+  try {
+    const d = await api(`/api/reports/${$('#kind').value}?` + qs());
+    $('#report').innerHTML = table(d.columns.map(c => ({ h: c, f: r => esc(r[c]) })), d.rows, 'No records for this report and date range.');
+    $('#csv').disabled = $('#print').disabled = false;
+  } catch (e) { toast(e.message, true); }
+};
+$('#csv').onclick = () => { location.href = `/api/reports/${$('#kind').value}?format=csv&` + qs(); };
+$('#print').onclick = () => window.print();
+{% endif %}
+</script>{% endblock %}
